@@ -1,0 +1,83 @@
+version: '3.8'
+services:
+    nginx_proxy:
+        build: ./build/nginx-proxy/
+        restart: unless-stopped
+        depends_on:
+            - varnish
+        ports:
+            - 127.0.0.1:80:80
+            - 127.0.0.1:443:443
+        volumes:
+            - ./env/certificates:/etc/nginx/certs
+    nginx_http:
+        build: ./build/nginx-http/
+        restart: unless-stopped
+        depends_on:
+            - php
+        expose:
+          - 8080
+        volumes:
+            - ./html:/var/www/html
+    varnish:
+        build: ./build/varnish/
+        restart: unless-stopped
+        depends_on:
+            - nginx_http
+        expose:
+          - 8081
+    php:
+        build: ./build/php/
+        restart: unless-stopped
+        user: "1000"
+        secrets:
+            - source: composer
+              target: /home/docker/.composer/auth.json
+        volumes:
+            - ./html:/var/www/html
+            - $SSH_AUTH_SOCK:$SSH_AUTH_SOCK
+        environment:
+            SSH_AUTH_SOCK: $SSH_AUTH_SOCK
+    mysql:
+        build: ./build/mysql/
+        restart: unless-stopped
+        ports:
+            - 127.0.0.1:3306:3306
+        expose:
+          - 3306
+        volumes:
+            - ./data/mysql:/var/lib/mysql
+            - ./data/sql-dumps:/var/sql-dumps
+        environment:
+            MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
+    opensearch:
+        build: ./build/opensearch/
+        restart: unless-stopped
+        ports:
+            - 127.0.0.1:9200:9200
+        expose:
+          - 9200
+        environment:
+            - discovery.type=single-node
+            - plugins.security.disabled=true
+            - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+        volumes:
+           - ./data/opensearch:/usr/share/opensearch/data
+    redis:
+        build: ./build/redis/
+        restart: unless-stopped
+        expose:
+          - 6379
+        volumes:
+          - ./data/redis:/data
+        entrypoint: redis-server --requirepass ${REDIS_PASSWORD}
+    rabbitmq:
+        build: ./build/rabbitmq/
+        restart: unless-stopped
+        ports:
+            - 127.0.0.1:15672:15672
+        expose:
+          - 5672
+secrets:
+    composer:
+        file: env/composer/auth.json

@@ -1,0 +1,6 @@
+.env
+.idea
+html/
+data/
+env/certificates/
+env/composer/auth.json
